@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DiscoLadder</title>
+  <style>
+    :root {
+      --bg: #0e1116; --panel: #161b22; --line: #232a33;
+      --text: #e6edf3; --muted: #8b949e; --accent: #4c8dff; --danger: #f85149;
+      --you: #4c8dff; --buyer: #d2a8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    header { text-align: center; padding: 32px 16px 8px; }
+    h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+    main { width: 100%; max-width: 640px; padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+    .controls { display: flex; align-items: center; gap: 12px; }
+    button {
+      font: inherit; font-weight: 600; border: none; border-radius: 10px;
+      padding: 12px 20px; cursor: pointer; color: #fff;
+    }
+    .start { background: var(--accent); }
+    .end { background: var(--danger); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .pill {
+      margin-left: auto; font-size: 13px; color: var(--muted);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .dot.connected { background: #3fb950; box-shadow: 0 0 0 3px rgba(63,185,80,.2); }
+    .dot.connecting { background: #d29922; }
+    .dot.error, .dot.ended { background: var(--danger); }
+    .transcript {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 16px; flex: 1; min-height: 300px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .empty { color: var(--muted); text-align: center; margin: auto; font-size: 14px; }
+    .turn { line-height: 1.45; font-size: 15px; }
+    .turn .who { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .turn.you .who { color: var(--you); }
+    .turn.buyer .who { color: var(--buyer); }
+    .note { color: var(--muted); font-size: 12.5px; text-align: center; }
+    select {
+      font: inherit; background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+    }
+    /* Speaking visualizer */
+    .stage {
+      display: flex; gap: 64px; align-items: center; justify-content: center;
+      min-height: 300px; padding: 40px 16px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    }
+    .who-orb { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .orb {
+      --l: 0;
+      width: 120px; height: 120px; border-radius: 50%; position: relative;
+      transform: scale(calc(1 + var(--l) * 0.22));
+      transition: transform 0.07s ease-out;
+    }
+    .orb.you    { color: var(--you);   background: radial-gradient(circle at 50% 38%, #6aa0ff, #1f4a8f); }
+    .orb.buyer  { color: var(--buyer); background: radial-gradient(circle at 50% 38%, #e0bcff, #6b3fa0); }
+    .orb::after {
+      content: ""; position: absolute; inset: -10px; border-radius: 50%;
+      box-shadow: 0 0 34px 8px currentColor; opacity: calc(var(--l) * 0.9);
+      transition: opacity 0.07s ease-out;
+    }
+    .idle .orb { opacity: 0.28; }
+    .who-orb .name { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+    .stage-hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: -4px; }
+    /* Transcript dropdown */
+    details.tx { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+    details.tx > summary { cursor: pointer; padding: 12px 16px; font-size: 13px; color: var(--muted); list-style: none; }
+    details.tx > summary::-webkit-details-marker { display: none; }
+    details.tx > summary::before { content: "▸ "; }
+    details.tx[open] > summary::before { content: "▾ "; }
+    .txlist { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
+    .txlist:empty::after { content: "Nothing yet — start a call."; color: var(--muted); font-size: 13px; }
+    /* Scorecard */
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px; display: none; flex-direction: column; gap: 14px;
+    }
+    .card.show { display: flex; }
+    .card h2 { margin: 0; font-size: 18px; display: flex; align-items: baseline; gap: 10px; }
+    .score { font-size: 26px; font-weight: 800; color: #3fb950; }
+    .sumline { color: var(--text); font-size: 14px; line-height: 1.5; background: #0d1117; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+    .metric { background: #0d1117; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    .metric .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
+    .metric .val { font-size: 14px; line-height: 1.45; }
+    .pass { color: #3fb950; font-weight: 700; }
+    .fail { color: var(--danger); font-weight: 700; }
+    .miss { color: #d29922; }
+    .scoring { color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
+    /* Concision verdict chips + answer list */
+    .tight   { color: #3fb950; font-weight: 700; }
+    .padded  { color: #d29922; font-weight: 700; }
+    .evasive { color: var(--danger); font-weight: 700; }
+    .qalist { display: flex; flex-direction: column; gap: 12px; }
+    .qa { border-left: 2px solid var(--line); padding-left: 12px; }
+    .qa .q { font-size: 14px; line-height: 1.45; }
+    .qa .note { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .qa .tighter { font-size: 13.5px; margin-top: 4px; color: #7ee787; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DiscoLadder</h1>
+    <div class="sub">Pick a buyer, run the call, hang up for your scorecard.</div>
+  </header>
+  <main>
+    <div class="controls">
+      <select id="persona" title="Who you're calling"></select>
+      <button id="start" class="start">Start call</button>
+      <button id="end" class="end" disabled>End call</button>
+      <span class="pill"><span id="dot" class="dot"></span><span id="status">idle</span></span>
+    </div>
+    <div id="stage" class="stage idle">
+      <div class="who-orb"><div id="orbYou" class="orb you"></div><div class="name">You</div></div>
+      <div class="who-orb"><div id="orbBuyer" class="orb buyer"></div><div class="name" id="orbBuyerName">Buyer</div></div>
+    </div>
+    <div class="stage-hint">Choose a buyer, press <b>Start call</b>, allow your mic, and just talk. The orbs glow with whoever's speaking.</div>
+    <details class="tx"><summary>Transcript</summary><div id="txlist" class="txlist"></div></details>
+    <div id="card" class="card"></div>
+    <div class="note">When you hang up, the call is scored against your rubric and saved.</div>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

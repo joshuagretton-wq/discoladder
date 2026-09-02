@@ -1,0 +1,6 @@
+node_modules/
+.env
+sessions/*.json
+memory/
+personas/*-me.md
+.DS_Store
